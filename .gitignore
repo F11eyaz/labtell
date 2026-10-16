@@ -1,3 +1,23 @@
+# Зависимости и секреты
 node_modules/
 .env
+.env.*
+
+# Входные бланки (могут содержать данные пациентов) и результаты генерации
+input/
 output/
+
+# Демо-ролик (Remotion) хранится только локально
+video/
+scripts/capture-video-assets.mjs
+
+# Рассылка: база контактов и готовые материалы
+outreach/data/
+outreach/materials/
+
+# Локальные инструменты
+.claude/
+skills-lock.json
+*.log
+.DS_Store
+Thumbs.db
