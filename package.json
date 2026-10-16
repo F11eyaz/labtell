@@ -1,0 +1,22 @@
+{
+  "name": "med-reports-demo",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node src/server.js",
+    "extract": "node src/extract.js",
+    "render": "node src/render.js",
+    "demo": "node src/render.js --data data/sample-report.json",
+    "all": "node src/extract.js && node src/render.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "AI-генерация брендированных отчетов по анализам для клиник (демо)",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "express": "^5.3.0",
+    "multer": "^2.4.0",
+    "puppeteer": "^24.43.1",
+    "qrcode": "^1.5.4"
+  },
+  "type": "module"
+}
