@@ -1,6 +1,6 @@
 // JSON отчета + брендинг клиники -> HTML (A4, под печать в PDF).
 
-import { logoSvg } from "./clinic.js";
+import { logoHtml } from "./clinic.js";
 
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -239,9 +239,8 @@ export function renderReport(report, clinic, qrDataUrl) {
 </style></head>
 <body>
   <header>
-    <div class="brand">${logoSvg(c.primary)}
-      <div><div class="n">${esc(clinic.name)}</div><div class="t">${esc(clinic.tagline)}</div></div></div>
-    <div class="contacts">${esc(clinic.city)}<br>${esc(clinic.phone)} · ${esc(clinic.instagram)}<br>${esc(clinic.site)}</div>
+    <div class="brand"><div>${logoHtml(c)}<div class="t">${esc(clinic.tagline)}</div></div></div>
+    <div class="contacts">${esc(clinic.city)}<br>${[clinic.phone, clinic.instagram].filter(Boolean).map(esc).join(" · ")}<br>${esc(clinic.site)}</div>
   </header>
 
   <div class="titlebar">

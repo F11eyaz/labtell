@@ -1,5 +1,5 @@
 {
-  "name": "med-reports-demo",
+  "name": "labtell",
   "version": "1.0.0",
   "scripts": {
     "start": "node src/server.js",
@@ -10,9 +10,10 @@
   },
   "author": "",
   "license": "ISC",
-  "description": "AI-генерация брендированных отчетов по анализам для клиник (демо)",
+  "description": "labtell — ИИ-отчеты по анализам в стиле клиники",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
+    "@google/genai": "^2.30.0",
     "express": "^5.3.0",
     "multer": "^2.4.0",
     "puppeteer": "^24.43.1",

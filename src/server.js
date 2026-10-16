@@ -1,5 +1,5 @@
 // Веб-интерфейс: загрузка бланка -> генерация отчета в фоне -> просмотр и скачивание PDF.
-// Запуск: npm start (без ANTHROPIC_API_KEY работает в демо-режиме на data/sample-report.json)
+// Запуск: npm start (без API_KEY в .env работает в демо-режиме на data/sample-report.json)
 
 import fs from "node:fs";
 import path from "node:path";
@@ -8,11 +8,12 @@ import express from "express";
 import multer from "multer";
 import puppeteer from "puppeteer";
 import { clinic } from "./clinic.js";
+import { llm } from "./env.js";
 import { extractReport, ExtractError, MEDIA_TYPES } from "./extract.js";
 import { buildReportHtml, renderPdf } from "./render.js";
 
 const PORT = Number(process.env.PORT ?? 3100);
-const DEMO = process.env.DEMO === "1" || !process.env.ANTHROPIC_API_KEY;
+const DEMO = process.env.DEMO === "1" || !llm.apiKey;
 const MAX_MB = 20;
 const JOB_TTL_MS = 60 * 60 * 1000;
 
@@ -60,7 +61,7 @@ const app = express();
 app.use(express.static("public"));
 
 app.get("/api/config", (req, res) => {
-  res.json({ demo: DEMO, maxMb: MAX_MB, clinic: { name: clinic.name, tagline: clinic.tagline, colors: clinic.colors } });
+  res.json({ demo: DEMO, maxMb: MAX_MB, clinic: { name: clinic.name, colors: clinic.colors } });
 });
 
 app.post("/api/reports", upload.single("file"), (req, res) => {
@@ -119,5 +120,5 @@ setInterval(() => {
 }, 10 * 60 * 1000).unref();
 
 app.listen(PORT, () => {
-  console.log(`Открыть: http://localhost:${PORT}${DEMO ? "  (демо-режим: ANTHROPIC_API_KEY не задан)" : ""}`);
+  console.log(`Открыть: http://localhost:${PORT}${DEMO ? "  (демо-режим: API_KEY не задан)" : `  (модель: ${llm.model})`}`);
 });

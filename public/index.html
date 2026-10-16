@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Отчет по анализам</title>
+<title>labtell</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root { --p:#0F5C5C; --ps:#E3F0EE; --ink:#1B2526; --muted:#5F6B6D; --line:#E2E8E8; --bg:#F2F5F5;
@@ -14,8 +14,8 @@
 
   header { background:#fff; border-bottom: 1px solid var(--line); }
   .bar { max-width: 920px; margin: 0 auto; padding: 14px 20px; display:flex; align-items:center; gap: 10px; }
-  .bar .n { font-weight:700; font-size: 18px; color: var(--p); }
-  .bar .t { font-size: 13px; color: var(--muted); }
+  .wordmark { font-weight:800; font-size: 22px; letter-spacing: -0.8px; color: var(--ink); }
+  .wordmark span { color: var(--p); }
   .demo { margin-left:auto; font-size: 12px; font-weight:600; color: var(--warn); background:#FDF1DF;
           border-radius: 20px; padding: 3px 10px; white-space: nowrap; }
 
@@ -69,12 +69,8 @@
 <body>
 <header>
   <div class="bar">
-    <svg viewBox="0 0 48 48" width="32" height="32" aria-hidden="true">
-      <path d="M24 3 L42 9 V22 C42 33 34.5 41.5 24 45 C13.5 41.5 6 33 6 22 V9 Z" fill="currentColor" style="color:var(--p)"/>
-      <path d="M12 25 H18 L21 18 L25.5 31 L29 22 L31 25 H36" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    <div><div class="n" id="clinic-name">Qalqan Health</div><div class="t" id="clinic-tagline"></div></div>
-    <span class="demo" id="demo-badge" hidden title="ANTHROPIC_API_KEY не задан: вместо распознавания используется пример отчета">Демо-режим</span>
+    <div class="wordmark">lab<span>tell</span></div>
+    <span class="demo" id="demo-badge" hidden title="API_KEY не задан: вместо распознавания используется пример отчета">Демо-режим</span>
   </div>
 </header>
 
@@ -142,9 +138,6 @@
     maxMb = cfg.maxMb;
     $("max-mb").textContent = maxMb;
     $("demo-badge").hidden = !cfg.demo;
-    $("clinic-name").textContent = cfg.clinic.name;
-    $("clinic-tagline").textContent = cfg.clinic.tagline;
-    document.title = `Отчет по анализам — ${cfg.clinic.name}`;
     document.documentElement.style.setProperty("--p", cfg.clinic.colors.primary);
     document.documentElement.style.setProperty("--ps", cfg.clinic.colors.primarySoft);
   });

@@ -1,10 +1,12 @@
-// Шаг 1: бланк анализов (PNG/JPG/PDF) -> структурированный JSON через Claude.
+// Шаг 1: бланк анализов (PNG/JPG/PDF) -> структурированный JSON через LLM (Gemini или Claude, см. src/env.js).
 // Использование из CLI: node src/extract.js [путь к бланку] [путь к json]
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI, ApiError, FinishReason } from "@google/genai";
+import { llm } from "./env.js";
 import { reportSchema } from "./schema.js";
 
 const SYSTEM = `Ты — врач клинической лабораторной диагностики. Клиника превентивной медицины
@@ -28,10 +30,62 @@ const SYSTEM = `Ты — врач клинической лабораторно�
 - Специалистов указывай так, как они называются в казахстанских клиниках (терапевт, гематолог и т.п.).
 - Не включай ФИО и идентификаторы пациента — отчет обезличенный.`;
 
+const USER_PROMPT = "Разбери этот бланк анализов.";
+
 export const MEDIA_TYPES = { ".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg" };
 
 // Ошибка с текстом, который можно показать пользователю
 export class ExtractError extends Error {}
+
+const NO_ACCESS = "Нет доступа к API: проверьте API_KEY в .env.";
+const RATE_LIMIT = "Лимит запросов к API, попробуйте через минуту.";
+const REFUSED = "Модель отказалась обрабатывать этот файл.";
+const TRUNCATED = "Ответ модели обрезан — бланк слишком большой.";
+
+// --- Gemini ---
+
+let gemini;
+
+async function extractWithGemini(buffer, mediaType) {
+  gemini ??= new GoogleGenAI({ apiKey: llm.apiKey });
+  let response;
+  try {
+    response = await gemini.models.generateContent({
+      model: llm.model,
+      contents: [
+        {
+          role: "user",
+          parts: [{ inlineData: { mimeType: mediaType, data: buffer.toString("base64") } }, { text: USER_PROMPT }],
+        },
+      ],
+      config: {
+        systemInstruction: SYSTEM,
+        responseMimeType: "application/json",
+        responseJsonSchema: reportSchema,
+        maxOutputTokens: 65536,
+      },
+    });
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    if (error.status === 401 || error.status === 403 || /API key/i.test(error.message)) throw new ExtractError(NO_ACCESS);
+    if (error.status === 429) throw new ExtractError(RATE_LIMIT);
+    if (error.status === 400) throw new ExtractError(`Файл не удалось обработать: ${error.message}`);
+    throw new ExtractError(`Ошибка API ${error.status}, попробуйте позже.`);
+  }
+
+  if (response.promptFeedback?.blockReason) throw new ExtractError(REFUSED);
+  const finishReason = response.candidates?.[0]?.finishReason;
+  if (finishReason === FinishReason.MAX_TOKENS) throw new ExtractError(TRUNCATED);
+  if (finishReason !== FinishReason.STOP) throw new ExtractError(REFUSED);
+
+  const u = response.usageMetadata ?? {};
+  console.log(
+    `[${llm.model}] токены: вход ${u.promptTokenCount}, ответ ${u.candidatesTokenCount}, размышления ${u.thoughtsTokenCount ?? 0}`,
+  );
+  return response.text;
+}
+
+// --- Claude ---
 
 function documentBlock(buffer, mediaType) {
   const data = buffer.toString("base64");
@@ -41,15 +95,15 @@ function documentBlock(buffer, mediaType) {
   return { type: "image", source: { type: "base64", media_type: mediaType, data } };
 }
 
-let client;
+let anthropic;
 
-export async function extractReport(buffer, mediaType) {
-  client ??= new Anthropic();
+async function extractWithClaude(buffer, mediaType) {
+  anthropic ??= new Anthropic({ apiKey: llm.apiKey });
   let response;
   try {
     // Ответ длинный (подробные объяснения по каждому показателю) — стримим, чтобы не упереться в таймаут
-    const stream = client.beta.messages.stream({
-      model: "claude-opus-5-5",
+    const stream = anthropic.beta.messages.stream({
+      model: llm.model,
       max_tokens: 64000,
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
@@ -58,35 +112,31 @@ export async function extractReport(buffer, mediaType) {
         format: { type: "json_schema", schema: reportSchema },
       },
       system: SYSTEM,
-      messages: [
-        {
-          role: "user",
-          content: [documentBlock(buffer, mediaType), { type: "text", text: "Разбери этот бланк анализов." }],
-        },
-      ],
+      messages: [{ role: "user", content: [documentBlock(buffer, mediaType), { type: "text", text: USER_PROMPT }] }],
     });
     response = await stream.finalMessage();
   } catch (error) {
-    if (error instanceof Anthropic.AuthenticationError) {
-      throw new ExtractError("Нет доступа к API: задайте ANTHROPIC_API_KEY.");
-    } else if (error instanceof Anthropic.RateLimitError) {
-      throw new ExtractError("Лимит запросов к API, попробуйте через минуту.");
-    } else if (error instanceof Anthropic.BadRequestError) {
-      throw new ExtractError(`Файл не удалось обработать: ${error.message}`);
-    } else if (error instanceof Anthropic.APIError) {
-      throw new ExtractError(`Ошибка API ${error.status}, попробуйте позже.`);
-    }
+    if (error instanceof Anthropic.AuthenticationError) throw new ExtractError(NO_ACCESS);
+    if (error instanceof Anthropic.RateLimitError) throw new ExtractError(RATE_LIMIT);
+    if (error instanceof Anthropic.BadRequestError) throw new ExtractError(`Файл не удалось обработать: ${error.message}`);
+    if (error instanceof Anthropic.APIError) throw new ExtractError(`Ошибка API ${error.status}, попробуйте позже.`);
     throw error;
   }
 
-  if (response.stop_reason === "refusal") {
-    throw new ExtractError("Модель отказалась обрабатывать этот файл.");
+  if (response.stop_reason === "refusal") throw new ExtractError(REFUSED);
+  if (response.stop_reason === "max_tokens") throw new ExtractError(TRUNCATED);
+  return response.content.find((b) => b.type === "text")?.text;
+}
+
+export async function extractReport(buffer, mediaType) {
+  if (!llm.apiKey) throw new ExtractError("Не задан API_KEY в .env.");
+  const text =
+    llm.provider === "anthropic" ? await extractWithClaude(buffer, mediaType) : await extractWithGemini(buffer, mediaType);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new ExtractError("Модель вернула некорректный ответ, попробуйте еще раз.");
   }
-  if (response.stop_reason === "max_tokens") {
-    throw new ExtractError("Ответ модели обрезан — бланк слишком большой.");
-  }
-  const text = response.content.find((b) => b.type === "text")?.text;
-  return JSON.parse(text);
 }
 
 // CLI
@@ -99,10 +149,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
     process.exit(1);
   }
   try {
+    const started = Date.now();
     const report = await extractReport(fs.readFileSync(inputPath), mediaType);
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     fs.writeFileSync(outputPath, JSON.stringify(report, null, 2));
-    console.log(`Готово: ${outputPath} (${report.indicators.length} показателей)`);
+    const seconds = Math.round((Date.now() - started) / 1000);
+    console.log(`Готово за ${seconds} с: ${outputPath} (${report.indicators.length} показателей)`);
   } catch (error) {
     if (!(error instanceof ExtractError)) throw error;
     console.error(error.message);
