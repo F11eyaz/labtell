@@ -11,9 +11,8 @@ output/
 video/
 scripts/capture-video-assets.mjs
 
-# Рассылка: база контактов и готовые материалы
-outreach/data/
-outreach/materials/
+# Инструмент рассылки хранится только локально
+outreach/
 
 # Локальные инструменты
 .claude/
